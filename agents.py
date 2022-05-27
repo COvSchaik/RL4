@@ -30,25 +30,21 @@ class DynaAgent:
         # TO DO: Add own code
         prob = np.random.random()
         if prob < epsilon:
-            print("explore")
             return np.random.randint(0, self.n_actions)
         else:
             high = np.where(self.Q_sa[s, ] == np.amax(self.Q_sa[s, ]))
             return np.random.choice(high[0])
 
         
-    def update(self,s,a,r,done,s_next,n_planning_updates):
+    def update(self,s,a,r,done,s_next,n_planning_updates):        
         # TO DO: Add own code
-        #simulate env?        
         actions = []
         obs_states = []
-        #update
-        c = np.argmax(self.Q_sa[s_next, ])
-        print(c)
-        a_next = np.argmax(self.Q_sa[s_next, ])
+        #update        
+        a_next = np.random.choice(np.where(self.Q_sa[s_next, ] == np.amax(self.Q_sa[s_next, ]))[0])
         self.Q_sa[s,a] += self.learning_rate * ( r + self.gamma * self.Q_sa[s_next, a_next ] - self.Q_sa[s,a])
 
-
+        #make model
         self.counts[s, a, s_next] += 1
         self.rewardsum[s, a, s_next] += r
         self.estimate[ s, a, s_next] = self.counts[s, a, s_next]/np.sum(self.counts[s, a])
@@ -75,10 +71,11 @@ class DynaAgent:
 
         for i in range(n_planning_updates):
             randstate = np.random.choice(obs_states)
-            randaction = np.random.choice(actions[randstate])                                                   #probability?
-            est_state = np.argmax(self.estimate[randstate, randaction])
+            randaction = np.random.choice(actions[randstate])                                                   
+            est_state = np.random.choice(np.where(self.estimate[randstate, randaction] == np.amax(self.estimate[randstate, randaction]))[0])
             est_rew = self.rewestimate[randstate, randaction, est_state]
-            a_next = np.argmax(self.Q_sa[est_state, ])
+            a_next = np.random.choice(np.where(self.Q_sa[est_state, ] == np.amax(self.Q_sa[est_state, ]))[0])
+
             self.Q_sa[randstate, randaction] += self.learning_rate * ( est_rew + self.gamma * self.Q_sa[est_state, a_next] - self.Q_sa[randstate,randaction])
 
 
@@ -106,7 +103,6 @@ class PrioritizedSweepingAgent:
         # TO DO: Add own code
         prob = np.random.random()
         if prob < epsilon:
-            print("explore")
             return np.random.randint(0, self.n_actions)
         else:
             high = np.where(self.Q_sa[s, ] == np.amax(self.Q_sa[s, ]))
@@ -115,57 +111,47 @@ class PrioritizedSweepingAgent:
         
     def update(self,s,a,r,done,s_next,n_planning_updates):
         # TO DO: Add own code
+        #make model
         self.counts[s, a, s_next] += 1
         self.rewardsum[s, a, s_next] += r
         self.estimate[ s, a, s_next] = self.counts[s, a, s_next]/np.sum(self.counts[s, a])
         self.rewestimate [s, a, s_next] = self.rewardsum[s, a, s_next]/self.counts[s, a, s_next]
-
-        a_next = np.argmax(self.Q_sa[s_next, ])
-        #print("a_n: " + str(a_next))
-        #print("q: " + str(self.Q_sa[s_next, ]))
+        # fill priority queue
+        a_next = np.random.choice(np.where(self.Q_sa[s_next, ] == np.amax(self.Q_sa[s_next, ]))[0])
         p = abs(r + self.gamma * self.Q_sa[s_next, a_next] - self.Q_sa[s,a])
-        #print("p" + str(p))
-        #print("PROB" + str(p) + " " +str(s) + " " +str(a))
         if (p > self.priority_cutoff):
             self.queue.put((-p, (s,a)))
 
         
         for i in range(n_planning_updates):
-            #print ("get")
             if (self.queue.empty()):
-                print("leeg")
                 break
             pr = self.queue.get()
-            #print (p)
             state = pr[1][0]
             action = pr[1][1]
-            #print (str(state) + " " + str(action))
 
-            est_state = np.argmax(self.estimate[state, action])
+            est_state = np.random.choice(np.where(self.estimate[state, action] == np.amax(self.estimate[state, action]))[0])
+
             est_rew = self.rewestimate[state, action, est_state]
-            a_next = np.argmax(self.Q_sa[est_state, ])
-            self.Q_sa[state, action] += self.learning_rate * ( est_rew + self.gamma * self.Q_sa[est_state, a_next] - self.Q_sa[state,action])
-            #print(str(state) + " " +str(action) + " " +str(self.Q_sa[state, action]))
+            a_next = np.random.choice(np.where(self.Q_sa[est_state, ] == np.amax(self.Q_sa[est_state, ]))[0])
 
+            self.Q_sa[state, action] += self.learning_rate * ( est_rew + self.gamma * self.Q_sa[est_state, a_next] - self.Q_sa[state,action])
+            #fill priority queue
             for s_ in range(self.n_states):
                 for a_ in range(self.n_actions): 
                     if (self.counts[s_, a_, state] > 0):
                         est_rew = self.rewestimate[s_, a_, state]
                         p = abs(est_rew + self.gamma * self.Q_sa[state, action] - self.Q_sa[s_,a_])
-                        #print(p)
                         if (p > self.priority_cutoff):
                             self.queue.put((-p, (s_,a_)))
-                            #print("PROB" + str(p) + " " +str(state) + " " +str(action))
-
 
 
 
 class REINFORCE:
-    def __init__(self, n_states, n_actions, learning_rate, episodes, gamma):
+    def __init__(self, n_states, n_actions, learning_rate,  gamma):
         self.n_states = n_states
         self.n_actions = n_actions
         self.learning_rate = learning_rate
-        self.episodes = episodes
         self.gamma = gamma
         self.dist = np.full((n_states, n_actions), 1/self.n_actions)
 
@@ -213,38 +199,6 @@ class REINFORCE:
 
             # self.dist(states(t)) = np.gradient(self.dist(states(t)), loss)
 
-        
-        
-    def run():
-        env = WindyGridworld()
-        episodes = 5
-        gamma = 1
-        pi = REINFORCE(env.n_states, env.n_actions, episodes, gamma)    
-
-        for episode in range(episodes):
-            rewards = []
-            actions = []
-            states = []
-            state = env.reset()
-            while done == False:
-                action = pi.select_action(state)
-                state, r, done = env.step(action)
-                rewards.append(r)
-                actions.append(action)
-                states.append(state)
-
-                
-                if done:
-                    pi.update(rewards, actions, states)    
-            
-                
-
-        # Helper code to work with the queue
-        # Put (s,a) on the queue with priority p (needs a minus since the queue pops the smallest priority first)
-        # self.queue.put((-p,(s,a))) 
-        # Retrieve the top (s,a) from the queue
-        # _,(s,a) = self.queue.get() # get the top (s,a) for the queue
-        pass
             
 def test():
 
@@ -271,15 +225,14 @@ def test():
     
     elif policy == "grad":
         env = WindyGridworld()
-        episodes = 5
+        episodes = 100
         gamma = 1
-        pi = REINFORCE(env.n_states, env.n_actions, learning_rate, episodes, gamma)
+        pi = REINFORCE(env.n_states, env.n_actions, learning_rate, gamma)
 
         s = env.reset()  
         continuous_mode = False
         
-        for t in range(n_timesteps):
-        # for episode in range(episodes):
+        for t in range(episodes):
             rewards = []
             actions = []
             states = []
